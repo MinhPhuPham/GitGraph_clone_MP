@@ -426,7 +426,11 @@ export function viewDiff(repo: string, fromHash: string, toHash: string, oldFile
 		let title = pathComponents[pathComponents.length - 1] + ' (' + desc + ')';
 		if (fromHash === UNCOMMITTED) fromHash = 'HEAD';
 
-		return vscode.commands.executeCommand('vscode.diff', encodeDiffDocUri(repo, oldFilePath, fromHash === toHash ? fromHash + '^' : fromHash, type, DiffSide.Old), encodeDiffDocUri(repo, newFilePath, toHash, type, DiffSide.New), title, {
+		// absolute path for right side to allow blame
+		const rightUri = vscode.Uri.file(path.join(repo, newFilePath));
+		// left side stays virtual
+		const leftUri = encodeDiffDocUri(repo, oldFilePath, fromHash === toHash ? fromHash + '^' : fromHash, type, DiffSide.Old);
+		return vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title, {
 			preview: true,
 			viewColumn: getConfig().openNewTabEditorGroup
 		}).then(
@@ -606,21 +610,21 @@ export function resolveSpawnOutput(cmd: cp.ChildProcess) {
 			});
 			cmd.on('exit', (code) => {
 				if (resolved) return;
-				resolve({ code: code, error: null });
+				resolve({ code: code ?? -1, error: null });
 				resolved = true;
 			});
 		}),
 		new Promise<Buffer>((resolve) => {
 			// stdout promise
 			let buffers: Buffer[] = [];
-			cmd.stdout.on('data', (b: Buffer) => { buffers.push(b); });
-			cmd.stdout.on('close', () => resolve(Buffer.concat(buffers)));
+			cmd.stdout!.on('data', (b: Buffer) => { buffers.push(b); });
+			cmd.stdout!.on('close', () => resolve(Buffer.concat(buffers)));
 		}),
 		new Promise<string>((resolve) => {
 			// stderr promise
 			let stderr = '';
-			cmd.stderr.on('data', (d) => { stderr += d; });
-			cmd.stderr.on('close', () => resolve(stderr));
+			cmd.stderr!.on('data', (d) => { stderr += d; });
+			cmd.stderr!.on('close', () => resolve(stderr));
 		})
 	]);
 }

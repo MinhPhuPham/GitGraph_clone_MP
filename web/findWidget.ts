@@ -38,32 +38,29 @@ class FindWidget {
       '<input id="findInput" type="text" placeholder="Find" disabled/><span id="findCaseSensitive" class="findModifier" title="Match Case">Aa</span><span id="findRegex" class="findModifier" title="Use Regular Expression">.*</span><span id="findPosition"></span><span id="findPrev" title="Previous match (Shift+Enter)"></span><span id="findNext" title="Next match (Enter)"></span><span id="findOpenCdv" title="Open the Commit Details View for the current match"></span><span id="findClose" title="Close (Escape)"></span>';
     document.body.appendChild(this.widgetElem);
 
-    this.inputElem = <HTMLInputElement>document.getElementById("findInput")!;
-    let keyupTimeout: NodeJS.Timer | null = null;
-    this.inputElem.addEventListener("keyup", (e) => {
-      if (
-        (e.keyCode ? e.keyCode === 13 : e.key === "Enter") &&
-        this.text !== ""
-      ) {
-        if (e.shiftKey) {
-          this.prev();
-        } else {
-          this.next();
-        }
-        handledEvent(e);
-      } else {
-        if (keyupTimeout !== null) clearTimeout(keyupTimeout);
-        keyupTimeout = setTimeout(() => {
-          keyupTimeout = null;
-          if (this.text !== this.inputElem.value) {
-            this.text = this.inputElem.value;
-            this.clearMatches();
-            this.findMatches(this.getCurrentHash(), true);
-            this.openCommitDetailsViewForCurrentMatchIfEnabled();
-          }
-        }, 200);
-      }
-    });
+		this.inputElem = <HTMLInputElement>document.getElementById('findInput')!;
+		let keyupTimeout: NodeJS.Timeout | null = null;
+		this.inputElem.addEventListener('keyup', (e) => {
+			if ((e.keyCode ? e.keyCode === 13 : e.key === 'Enter') && this.text !== '') {
+				if (e.shiftKey) {
+					this.prev();
+				} else {
+					this.next();
+				}
+				handledEvent(e);
+			} else {
+				if (keyupTimeout !== null) clearTimeout(keyupTimeout);
+				keyupTimeout = setTimeout(() => {
+					keyupTimeout = null;
+					if (this.text !== this.inputElem.value) {
+						this.text = this.inputElem.value;
+						this.clearMatches();
+						this.findMatches(this.getCurrentHash(), true);
+						this.openCommitDetailsViewForCurrentMatchIfEnabled();
+					}
+				}, 200);
+			}
+		});
 
     this.caseSensitiveElem = document.getElementById("findCaseSensitive")!;
     alterClass(
@@ -304,7 +301,20 @@ class FindWidget {
               j++;
             if (j === commitElems.length) continue;
 
-            this.matches.push({ hash: commit.hash, elem: commitElems[j] });
+		if (this.text !== '') {
+			let colVisibility = this.view.getColumnVisibility(), findPattern: RegExp | null, findGlobalPattern: RegExp | null;
+			const regexText = workspaceState.findIsRegex ? this.text : this.text.replace(/[\\\[\](){}|.*+?^$]/g, '\\$&'), flags = 'u' + (workspaceState.findIsCaseSensitive ? '' : 'i');
+			try {
+				findPattern = new RegExp(regexText, flags);
+				findGlobalPattern = new RegExp(regexText, 'g' + flags);
+				this.widgetElem.removeAttribute(ATTR_ERROR);
+			} catch (e) {
+				findPattern = null;
+				findGlobalPattern = null;
+				this.widgetElem.setAttribute(ATTR_ERROR, (e as Error).message);
+			}
+			if (findPattern !== null && findGlobalPattern !== null) {
+				let commitElems = getCommitElems(), j = 0, commit, zeroLengthMatch = false;
 
             // Highlight matches
             let textElems = getChildNodesWithTextContent(commitElems[j]),
