@@ -7,52 +7,55 @@
  * - Full details are available at: https://api.mhutchie.com/vscode-git-graph/about
  */
 
-import * as crypto from 'crypto';
-import * as fs from 'fs';
-import * as https from 'https';
-import * as path from 'path';
+import * as crypto from "crypto";
+import * as fs from "fs";
+import * as https from "https";
+import * as path from "path";
 
-type LifeCycleEvent = {
-	stage: LifeCycleStage.Install;
-	extension: string;
-	vscode: string;
-	nonce: string;
-} | {
-	stage: LifeCycleStage.Update;
-	from: {
-		extension: string,
-		vscode: string
-	};
-	to: {
-		extension: string,
-		vscode: string
-	};
-	nonce: string;
-} | {
-	stage: LifeCycleStage.Uninstall;
-	extension: string;
-	vscode: string;
-	nonce: string;
-};
+type LifeCycleEvent =
+  | {
+      stage: LifeCycleStage.Install;
+      extension: string;
+      vscode: string;
+      nonce: string;
+    }
+  | {
+      stage: LifeCycleStage.Update;
+      from: {
+        extension: string;
+        vscode: string;
+      };
+      to: {
+        extension: string;
+        vscode: string;
+      };
+      nonce: string;
+    }
+  | {
+      stage: LifeCycleStage.Uninstall;
+      extension: string;
+      vscode: string;
+      nonce: string;
+    };
 
 export enum LifeCycleStage {
-	Install,
-	Update,
-	Uninstall
+  Install,
+  Update,
+  Uninstall,
 }
 
 export interface LifeCycleState {
-	previous: {
-		extension: string,
-		vscode: string,
-	} | null;
-	current: {
-		extension: string,
-		vscode: string
-	};
-	apiAvailable: boolean;
-	queue: LifeCycleEvent[];
-	attempts: number;
+  previous: {
+    extension: string;
+    vscode: string;
+  } | null;
+  current: {
+    extension: string;
+    vscode: string;
+  };
+  apiAvailable: boolean;
+  queue: LifeCycleEvent[];
+  attempts: number;
 }
 
 /**
@@ -60,7 +63,7 @@ export interface LifeCycleState {
  * @returns The nonce.
  */
 export function generateNonce() {
-	return crypto.randomBytes(32).toString('base64');
+  return crypto.randomBytes(32).toString("base64");
 }
 
 /**
@@ -68,7 +71,7 @@ export function generateNonce() {
  * @returns The path of the directory.
  */
 export function getDataDirectory() {
-	return path.join(__dirname, 'data');
+  return path.join(__dirname, "data");
 }
 
 /**
@@ -77,7 +80,7 @@ export function getDataDirectory() {
  * @returns The path of the life cycle file.
  */
 function getLifeCycleFilePathInDirectory(directory: string) {
-	return path.join(directory, 'life-cycle.json');
+  return path.join(directory, "life-cycle.json");
 }
 
 /**
@@ -86,19 +89,19 @@ function getLifeCycleFilePathInDirectory(directory: string) {
  * @returns The life cycle state.
  */
 export function getLifeCycleStateInDirectory(directory: string) {
-	return new Promise<LifeCycleState | null>((resolve) => {
-		fs.readFile(getLifeCycleFilePathInDirectory(directory), (err, data) => {
-			if (err) {
-				resolve(null);
-			} else {
-				try {
-					resolve(Object.assign({ attempts: 1 }, JSON.parse(data.toString())));
-				} catch (_) {
-					resolve(null);
-				}
-			}
-		});
-	});
+  return new Promise<LifeCycleState | null>((resolve) => {
+    fs.readFile(getLifeCycleFilePathInDirectory(directory), (err, data) => {
+      if (err) {
+        resolve(null);
+      } else {
+        try {
+          resolve(Object.assign({ attempts: 1 }, JSON.parse(data.toString())));
+        } catch (_) {
+          resolve(null);
+        }
+      }
+    });
+  });
 }
 
 /**
@@ -106,22 +109,29 @@ export function getLifeCycleStateInDirectory(directory: string) {
  * @param directory The directory to store the life cycle state.
  * @param state The state to save.
  */
-export function saveLifeCycleStateInDirectory(directory: string, state: LifeCycleState) {
-	return new Promise((resolve, reject) => {
-		fs.mkdir(directory, (err) => {
-			if (!err || err.code === 'EEXIST') {
-				fs.writeFile(getLifeCycleFilePathInDirectory(directory), JSON.stringify(state), (err) => {
-					if (err) {
-						reject();
-					} else {
-						resolve();
-					}
-				});
-			} else {
-				reject();
-			}
-		});
-	});
+export function saveLifeCycleStateInDirectory(
+  directory: string,
+  state: LifeCycleState
+): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    fs.mkdir(directory, (err) => {
+      if (!err || err.code === "EEXIST") {
+        fs.writeFile(
+          getLifeCycleFilePathInDirectory(directory),
+          JSON.stringify(state),
+          (err) => {
+            if (err) {
+              reject();
+            } else {
+              resolve();
+            }
+          }
+        );
+      } else {
+        reject();
+      }
+    });
+  });
 }
 
 /**
@@ -130,10 +140,10 @@ export function saveLifeCycleStateInDirectory(directory: string, state: LifeCycl
  * @returns TRUE => Queue was successfully sent & the API is still available, FALSE => The API is no longer available.
  */
 export async function sendQueue(queue: LifeCycleEvent[]) {
-	for (let i = 0; i < queue.length; i++) {
-		if (!await sendEvent(queue[i])) return false;
-	}
-	return true;
+  for (let i = 0; i < queue.length; i++) {
+    if (!(await sendEvent(queue[i]))) return false;
+  }
+  return true;
 }
 
 /**
@@ -142,47 +152,69 @@ export async function sendQueue(queue: LifeCycleEvent[]) {
  * @returns TRUE => Event was successfully sent & the API is still available, FALSE => The API is no longer available.
  */
 function sendEvent(event: LifeCycleEvent) {
-	return new Promise<boolean>((resolve, reject) => {
-		let completed = false, receivedResponse = false, apiAvailable = false;
-		const complete = () => {
-			if (!completed) {
-				completed = true;
-				if (receivedResponse) {
-					resolve(apiAvailable);
-				} else {
-					reject();
-				}
-			}
-		};
+  return new Promise<boolean>((resolve, reject) => {
+    let completed = false,
+      receivedResponse = false,
+      apiAvailable = false;
+    const complete = () => {
+      if (!completed) {
+        completed = true;
+        if (receivedResponse) {
+          resolve(apiAvailable);
+        } else {
+          reject();
+        }
+      }
+    };
 
-		const sendEvent: Omit<LifeCycleEvent, 'stage'> & { about: string, stage?: LifeCycleStage } = Object.assign({
-			about: 'Information about this API is available at: https://api.mhutchie.com/vscode-git-graph/about'
-		}, event);
-		delete sendEvent.stage;
+    const sendEvent: Omit<LifeCycleEvent, "stage"> & {
+      about: string;
+      stage?: LifeCycleStage;
+    } = Object.assign(
+      {
+        about:
+          "Information about this API is available at: https://api.mhutchie.com/vscode-git-graph/about",
+      },
+      event
+    );
+    delete sendEvent.stage;
 
-		const content = JSON.stringify(sendEvent);
-		https.request({
-			method: 'POST',
-			hostname: 'api.mhutchie.com',
-			path: '/vscode-git-graph/' + (event.stage === LifeCycleStage.Install ? 'install' : event.stage === LifeCycleStage.Update ? 'update' : 'uninstall'),
-			headers: {
-				'Content-Type': 'application/json',
-				'Content-Length': content.length
-			},
-			agent: false,
-			timeout: 15000
-		}, (res) => {
-			res.on('data', () => { });
-			res.on('end', () => {
-				if (res.statusCode === 201) {
-					receivedResponse = true;
-					apiAvailable = true;
-				} else if (res.statusCode === 410) {
-					receivedResponse = true;
-				}
-				complete();
-			});
-			res.on('error', complete);
-		}).on('error', complete).on('close', complete).end(content);
-	});
+    const content = JSON.stringify(sendEvent);
+    https
+      .request(
+        {
+          method: "POST",
+          hostname: "api.mhutchie.com",
+          path:
+            "/vscode-git-graph/" +
+            (event.stage === LifeCycleStage.Install
+              ? "install"
+              : event.stage === LifeCycleStage.Update
+              ? "update"
+              : "uninstall"),
+          headers: {
+            "Content-Type": "application/json",
+            "Content-Length": content.length,
+          },
+          agent: false,
+          timeout: 15000,
+        },
+        (res) => {
+          res.on("data", () => {});
+          res.on("end", () => {
+            if (res.statusCode === 201) {
+              receivedResponse = true;
+              apiAvailable = true;
+            } else if (res.statusCode === 410) {
+              receivedResponse = true;
+            }
+            complete();
+          });
+          res.on("error", complete);
+        }
+      )
+      .on("error", complete)
+      .on("close", complete)
+      .end(content);
+  });
 }
