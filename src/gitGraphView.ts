@@ -91,17 +91,11 @@ export class GitGraphView extends BaseGitGraphView {
 				dark: this.getResourcesUri('webview-icon-dark.svg')
 			};
 
-    this.registerDisposables(
-      // Dispose Git Graph View resources when disposed
-      toDisposable(() => {
-        GitGraphView.currentPanel = undefined;
-        this.repoFileWatcher.stop();
-      }),
-
 		this.registerDisposables(
 			// Dispose Git Graph View resources when disposed
 			toDisposable(() => {
 				GitGraphView.currentPanel = undefined;
+        this.repoFileWatcher.stop();
 			}),
 
       // Register a callback that is called when the view is shown or hidden
